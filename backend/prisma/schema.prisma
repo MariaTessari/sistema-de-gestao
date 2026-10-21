@@ -1,0 +1,25 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Funcionario {
+  id Int @id @default(autoincrement())
+  nome String
+  email String @unique
+  senha String
+  cpf String @unique
+  tarefas Tarefa[]
+}
+
+model Tarefa{
+  id Int @id @default(autoincrement())
+  titulo String
+  dataEntrega DateTime
+  funcionarioId Int @unique
+  funcionario Funcionario @relation(fields: [funcionarioId], references: [id])
+}
