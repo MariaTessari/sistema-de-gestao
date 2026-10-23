@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import bcrypt from "bcrypt";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client.ts";
 
@@ -13,6 +14,8 @@ if (!DATABASE_URL){
 
 const adapter = new PrismaPg({ connectionString: DATABASE_URL});
 const prisma = new PrismaClient ({adapter});
+
+const SALT_ROUNDS = 10;
 
 const app = express();
 app.use(cors({ origin: FRONTEND_URL}));
@@ -40,8 +43,10 @@ app.post("/funcionario", async (req, res, next)=>{
         });
     }
     
+    const senhaHash = await bcrypt.hash(senha, SALT_ROUNDS);
+
     const funcionarioCriado = await prisma.funcionario.create({
-        data: {nome, email, senha, cpf},
+        data: {nome, email, senha: senhaHash, cpf},
         select: {id: true, nome: true, email: true, cpf:true}
     })
     return res.status(201).json(funcionarioCriado);
@@ -53,6 +58,36 @@ app.post("/funcionario", async (req, res, next)=>{
             });
         }
         return next(erro);
+    }
+});
+
+app.post("/login", async (req, res, next) => {
+    try{
+        const { email, senha } = req.body;
+
+        if(!email || !senha){
+            return res.status(400).json({ erro: "Informe email e senha" });
+        }
+
+        const funcionario = await prisma.funcionario.findUnique({ where: { email } });
+
+        // mesma mensagem para email inexistente e senha errada (não revela qual deu errado)
+        const senhaCorreta = funcionario
+            ? await bcrypt.compare(senha, funcionario.senha)
+            : false;
+
+        if(!senhaCorreta){
+            return res.status(401).json({ erro: "Email ou senha inválidos" });
+        }
+
+        return res.json({
+            id: funcionario.id,
+            nome: funcionario.nome,
+            email: funcionario.email,
+            cpf: funcionario.cpf
+        });
+    } catch(erro){
+        next(erro);
     }
 });
 
@@ -74,7 +109,7 @@ app.put("/funcionario/:id", async (req, res, next)=>{
     const data ={};
     if(nome !==undefined) data.nome =nome;
     if(email !==undefined) data.email =email;
-    if(senha !==undefined) data.senha = senha;
+    if(senha) data.senha = await bcrypt.hash(senha, SALT_ROUNDS);
     if(cpf !==undefined) data.cpf =cpf;
 
     const funcionarioAtualizado = await prisma.funcionario.update({
