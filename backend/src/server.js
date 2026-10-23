@@ -71,7 +71,6 @@ app.post("/login", async (req, res, next) => {
 
         const funcionario = await prisma.funcionario.findUnique({ where: { email } });
 
-        // mesma mensagem para email inexistente e senha errada (não revela qual deu errado)
         const senhaCorreta = funcionario
             ? await bcrypt.compare(senha, funcionario.senha)
             : false;
