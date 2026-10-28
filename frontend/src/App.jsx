@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import './App.css'
 import {
   listarFuncionarios,
   criarFuncionario,
   atualizarFuncionario,
   deletarFuncionario,
+  listarTarefas,
+  criarTarefa,
+  atualizarTarefa,
+  deletarTarefa,
 } from './api'
 
 const FORMULARIO_VAZIO = { nome: '', email: '', cpf: '', senha: '' }
+const FORMULARIO_TAREFA_VAZIO = { titulo: '', dataEntrega: '', funcionarioId: '' }
 
 function App() {
   const [funcionarios, setFuncionarios] = useState([])
@@ -16,6 +21,13 @@ function App() {
   const [erro, setErro] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [salvando, setSalvando] = useState(false)
+
+  const [tarefas, setTarefas] = useState([])
+  const [formTarefa, setFormTarefa] = useState({ ...FORMULARIO_TAREFA_VAZIO })
+  const [editandoTarefaId, setEditandoTarefaId] = useState(null)
+  const [erroTarefa, setErroTarefa] = useState('')
+  const [mensagemTarefa, setMensagemTarefa] = useState('')
+  const [salvandoTarefa, setSalvandoTarefa] = useState(false)
 
   useEffect(() => {
     let ativo = true
@@ -31,7 +43,19 @@ function App() {
       }
     }
 
+    async function buscarTarefas() {
+      try {
+        const lista = await listarTarefas()
+        if (!ativo) return
+        setTarefas(lista)
+      } catch (erroApi) {
+        if (!ativo) return
+        setErroTarefa(erroApi.message)
+      }
+    }
+
     buscar()
+    buscarTarefas()
 
     return () => {
       ativo = false
@@ -122,6 +146,86 @@ function App() {
     }
   }
 
+  function alterarCampoTarefa(campo, valor) {
+    setFormTarefa((atual) => ({ ...atual, [campo]: valor }))
+  }
+
+  function editarTarefa(tarefa) {
+    setEditandoTarefaId(tarefa.id)
+    setFormTarefa({
+      titulo: tarefa.titulo,
+      dataEntrega: tarefa.dataEntrega ? String(tarefa.dataEntrega).slice(0, 10) : '',
+      funcionarioId: tarefa.funcionarioId,
+    })
+    setErroTarefa('')
+    setMensagemTarefa('')
+    document.getElementById('formulario-tarefa')?.scrollIntoView({ block: 'start' })
+  }
+
+  function cancelarTarefa() {
+    setEditandoTarefaId(null)
+    setFormTarefa({ ...FORMULARIO_TAREFA_VAZIO })
+    setErroTarefa('')
+    setMensagemTarefa('')
+  }
+
+  async function salvarTarefa(evento) {
+    evento.preventDefault()
+    setSalvandoTarefa(true)
+    setErroTarefa('')
+    setMensagemTarefa('')
+
+    try {
+      const dados = {
+        titulo: formTarefa.titulo,
+        dataEntrega: formTarefa.dataEntrega,
+        funcionarioId: Number(formTarefa.funcionarioId),
+      }
+
+      let idSalvo
+
+      if (editandoTarefaId) {
+        const salvo = await atualizarTarefa(editandoTarefaId, dados)
+        idSalvo = salvo.id
+        setMensagemTarefa('Tarefa atualizada.')
+      } else {
+        const criado = await criarTarefa(dados)
+        idSalvo = criado.id
+        setMensagemTarefa('Tarefa cadastrada.')
+      }
+
+      const lista = await listarTarefas()
+      setTarefas(lista)
+
+      setFormTarefa({ ...FORMULARIO_TAREFA_VAZIO })
+      setEditandoTarefaId(null)
+
+      document.getElementById('tarefa-' + idSalvo)?.scrollIntoView({ block: 'center' })
+    } catch (erroApi) {
+      setErroTarefa(erroApi.message)
+    } finally {
+      setSalvandoTarefa(false)
+    }
+  }
+
+  async function excluirTarefa(tarefa) {
+    const confirmado = window.confirm('Excluir ' + tarefa.titulo + '?')
+    if (!confirmado) return
+
+    try {
+      await deletarTarefa(tarefa.id)
+      const lista = await listarTarefas()
+      setTarefas(lista)
+    } catch (erroApi) {
+      setErroTarefa(erroApi.message)
+    }
+  }
+
+  function nomeFuncionario(id) {
+    const f = funcionarios.find((item) => item.id === id)
+    return f ? f.nome : id
+  }
+
   return (
     <div>
       <h1>Funcionários</h1>
@@ -210,6 +314,94 @@ function App() {
                   <td>
                     <button onClick={() => editar(funcionario)}>Editar</button>{' '}
                     <button onClick={() => excluir(funcionario)}>Excluir</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <h1>Tarefas</h1>
+
+      {erroTarefa ? <p>{erroTarefa}</p> : null}
+      {mensagemTarefa ? <p>{mensagemTarefa}</p> : null}
+
+      <form id="formulario-tarefa" onSubmit={salvarTarefa}>
+        <h2>{editandoTarefaId ? 'Editar tarefa' : 'Nova tarefa'}</h2>
+
+        <div className="grade">
+          <label>
+            Título
+            <input
+              required
+              value={formTarefa.titulo}
+              onChange={(e) => alterarCampoTarefa('titulo', e.target.value)}
+              placeholder="Título da tarefa"
+            />
+          </label>
+
+          <label>
+            Data de entrega
+            <input
+              required
+              type="date"
+              value={formTarefa.dataEntrega}
+              onChange={(e) => alterarCampoTarefa('dataEntrega', e.target.value)}
+            />
+          </label>
+
+          <label>
+            Funcionário
+            <select
+              required
+              value={formTarefa.funcionarioId}
+              onChange={(e) => alterarCampoTarefa('funcionarioId', e.target.value)}
+            >
+              <option value="">Selecione...</option>
+              {funcionarios.map((funcionario) => (
+                <option key={funcionario.id} value={funcionario.id}>
+                  {funcionario.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <button type="submit" disabled={salvandoTarefa}>
+          Salvar
+        </button>{' '}
+        <button type="button" onClick={cancelarTarefa}>
+          {editandoTarefaId ? 'Cancelar' : 'Limpar'}
+        </button>
+      </form>
+
+      <div id="lista-tarefas">
+        <h2>Lista de tarefas</h2>
+
+        {tarefas.length === 0 ? (
+          <p>Nenhuma tarefa cadastrada.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Título</th>
+                <th>Data de entrega</th>
+                <th>Funcionário</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tarefas.map((tarefa) => (
+                <tr key={tarefa.id} id={'tarefa-' + tarefa.id}>
+                  <td>{tarefa.id}</td>
+                  <td>{tarefa.titulo}</td>
+                  <td>{tarefa.dataEntrega ? new Date(tarefa.dataEntrega).toLocaleDateString('pt-BR') : ''}</td>
+                  <td>{tarefa.funcionario ? tarefa.funcionario.nome : nomeFuncionario(tarefa.funcionarioId)}</td>
+                  <td>
+                    <button onClick={() => editarTarefa(tarefa)}>Editar</button>{' '}
+                    <button onClick={() => excluirTarefa(tarefa)}>Excluir</button>
                   </td>
                 </tr>
               ))}

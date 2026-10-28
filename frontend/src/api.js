@@ -33,6 +33,28 @@ export function atualizarFuncionario(id, funcionario) {
   })
 }
 
+export function listarTarefas() {
+  return requisicao('/tarefa')
+}
+
+export function criarTarefa(tarefa) {
+  return requisicao('/tarefa', {
+    method: 'POST',
+    body: JSON.stringify(tarefa),
+  })
+}
+
+export function atualizarTarefa(id, tarefa) {
+  return requisicao('/tarefa/' + id, {
+    method: 'PUT',
+    body: JSON.stringify(tarefa),
+  })
+}
+
+export function deletarTarefa(id) {
+  return requisicao('/tarefa/' + id, { method: 'DELETE' })
+}
 export function deletarFuncionario(id) {
   return requisicao('/funcionario/' + id, { method: 'DELETE' })
 }
+

@@ -145,7 +145,147 @@ app.delete("/funcionario/:id", async (req, res, next)=>{
         if (erro.code === "P2025") {
             return res.status(404).json({erro: "Funcionário não encontrado."});
         }
+        if (erro.code === "P2003") {
+            return res.status(409).json({ erro: "Funcionário possui tarefas vinculadas." });
+        }
         next(erro);
+    }
+});
+
+app.get("/tarefa", async (req, res, next) => {
+    try {
+        const tarefas = await prisma.tarefa.findMany({
+            orderBy: { id: "asc" },
+            include: { funcionario: { select: { id: true, nome: true } } }
+        });
+        return res.json(tarefas);
+    } catch (erro) {
+        next(erro);
+    }
+});
+
+
+
+
+
+
+
+
+
+
+app.get("/tarefa/:id", async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (Number.isNaN(id)) {
+            return res.status(400).json({ erro: "Id inválido" });
+        }
+        const tarefa = await prisma.tarefa.findUnique({
+            where: { id },
+            include: { funcionario: { select: { id: true, nome: true } } }
+        });
+        if (!tarefa) {
+            return res.status(404).json({ erro: "Tarefa não encontrada" });
+        }
+        return res.json(tarefa);
+    } catch (erro) {
+        next(erro);
+    }
+});
+
+app.post("/tarefa", async (req, res, next) => {
+    try {
+        const { titulo, dataEntrega, funcionarioId } = req.body;
+
+        if (!titulo || !dataEntrega || funcionarioId === undefined || funcionarioId === null || funcionarioId === '') {
+            return res.status(400).json({
+                erro: "Campos obrigatórios: titulo, dataEntrega e funcionarioId"
+            });
+        }
+
+        const data = new Date(dataEntrega);
+        if (Number.isNaN(data.getTime())) {
+            return res.status(400).json({ erro: "dataEntrega inválida" });
+        }
+
+        const fid = Number(funcionarioId);
+        if (!Number.isInteger(fid)) {
+            return res.status(400).json({ erro: "funcionarioId inválido" });
+        }
+
+        const tarefaCriada = await prisma.tarefa.create({
+            data: { titulo, dataEntrega: data, funcionarioId: fid },
+            include: { funcionario: { select: { id: true, nome: true } } }
+        });
+        return res.status(201).json(tarefaCriada);
+    } catch (erro) {
+        if (erro.code === "P2003") {
+            return res.status(400).json({ erro: "Funcionário não encontrado" });
+        }
+        return next(erro);
+    }
+});
+
+app.put("/tarefa/:id", async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (Number.isNaN(id)) {
+            return res.status(400).json({ erro: "Id inválido" });
+        }
+
+        const { titulo, dataEntrega, funcionarioId } = req.body;
+        if (titulo === undefined && dataEntrega === undefined && funcionarioId === undefined) {
+            return res.status(400).json({
+                erro: "Informe ao menos um campo: titulo, dataEntrega OU funcionarioId"
+            });
+        }
+
+        const data = {};
+        if (titulo !== undefined) data.titulo = titulo;
+        if (dataEntrega !== undefined) {
+            const d = new Date(dataEntrega);
+            if (Number.isNaN(d.getTime())) {
+                return res.status(400).json({ erro: "dataEntrega inválida" });
+            }
+            data.dataEntrega = d;
+        }
+        if (funcionarioId !== undefined) {
+            const fid = Number(funcionarioId);
+            if (!Number.isInteger(fid)) {
+                return res.status(400).json({ erro: "funcionarioId inválido" });
+            }
+            data.funcionarioId = fid;
+        }
+
+        const tarefaAtualizada = await prisma.tarefa.update({
+            where: { id },
+            data,
+            include: { funcionario: { select: { id: true, nome: true } } }
+        });
+        return res.json(tarefaAtualizada);
+    } catch (erro) {
+        if (erro.code === "P2025") {
+            return res.status(404).json({ erro: "Tarefa não encontrada" });
+        }
+        if (erro.code === "P2003") {
+            return res.status(400).json({ erro: "Funcionário não encontrado" });
+        }
+        return next(erro);
+    }
+});
+
+app.delete("/tarefa/:id", async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id)) {
+            return res.status(400).json({ erro: "ID inválido." });
+        }
+        await prisma.tarefa.delete({ where: { id } });
+        res.json({ ok: true });
+    } catch (erro) {
+        if (erro.code === "P2025") {
+            return res.status(404).json({ erro: "Tarefa não encontrada." });
+        }
+        return next(erro);
     }
 });
 

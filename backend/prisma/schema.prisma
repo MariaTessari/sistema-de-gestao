@@ -20,6 +20,6 @@ model Tarefa{
   id Int @id @default(autoincrement())
   titulo String
   dataEntrega DateTime
-  funcionarioId Int @unique
+  funcionarioId Int
   funcionario Funcionario @relation(fields: [funcionarioId], references: [id])
 }
